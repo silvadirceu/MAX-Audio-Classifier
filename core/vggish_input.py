@@ -84,6 +84,7 @@ def wavfile_to_examples(wav_file):
     try:
         wav_file = BytesIO(wav_file)
         sr, wav_data = wavfile.read(wav_file)
+        # wav_data, sr = np.asarray(wav_file)
     except IOError:
         print("Error reading WAV file!")
         print("The specified WAV file type is not supported by scipy.io.wavfile.read()")

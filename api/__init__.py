@@ -15,3 +15,5 @@
 #
 from .metadata import ModelMetadataAPI  # noqa
 from .predict import ModelPredictAPI  # noqa
+from .predict_base64 import ModelBase64PredictAPI
+from .predict_metadata import ModelPathPredictAPI
