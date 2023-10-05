@@ -1,43 +1,38 @@
 import librosa
-import base64
 import io
-import soundfile as sf
 import requests
+import time
+from utils.serializers import ndarray_to_bytes
 
-file = "/home/joao/Desktop/Ecad/database/audio/tasks/test/test.ogg"
-url = "http://localhost:3004/model/predict/base64"
-signal, fs = librosa.load(file, mono=True, sr=16000)
-
-# Duration of each audio segment to be sent in seconds
-segment_duration = 10  # 10s
-
-# Number of samples per segment
-samples_per_segment = fs * segment_duration
-
-# Total number of segments
-num_segments = len(signal) // samples_per_segment
-
-# Loop through the signal with a step size of 10s worth of samples
-for i in range(num_segments):
-    start_sample = i * samples_per_segment
-    end_sample = (i + 1) * samples_per_segment
-    
-    # Extract the segment from the signal
-    segment_signal = signal[start_sample:end_sample]
-    
-    # Save the segment to a BytesIO buffer
+def max_request(signal) -> dict:
+    audio_bytes = ndarray_to_bytes(signal)
     buf = io.BytesIO()
-    sf.write(buf, segment_signal, fs, format='WAV', endian='LITTLE', subtype='PCM_16')
-    
-    # Encode to base64
-    audio_base64_bytes = base64.b64encode(buf.getvalue())
-    audio_base64_string = audio_base64_bytes.decode('utf-8')
-    
-    # Send the segment as a POST request
-    post_data = {"audio": audio_base64_string}
-    response = requests.post(url, json=post_data)
-    
-    # Output the response from the server
-    print(f"Segment {i+1}/{num_segments}")
-    print(response.status_code)
-    print(response.json())
+    buf.write(audio_bytes)
+    # sf.write(buf, signal, fs, format='WAV', endian='LITTLE', subtype='PCM_16')
+    buf.seek(0)
+
+    response = requests.post(url, files={"audio": buf})
+    # print(response.json())
+    return response.json()["predictions"]
+
+
+if __name__ == "__main__":
+    file = "/home/joao/Desktop/Ecad/database/audio/tasks/139743/139743.ogg"
+    url = "http://localhost:3005/model/predict/bytes"
+    signal, fs = librosa.load(file, mono=True, sr=16000)
+    segment_signal = signal[:int(10 * fs)]
+    segment_duration = 10  # 10s
+    samples_per_segment = fs * segment_duration
+    num_segments = len(signal) // samples_per_segment
+    start = time.time()
+    predictions = []
+    for i in range(num_segments):
+        start_sample = i * samples_per_segment
+        end_sample = (i + 1) * samples_per_segment
+        segment_signal = signal[start_sample:end_sample]
+        predictions.extend(max_request(signal=segment_signal))
+
+    # max_request(signal=signal)
+    print(predictions)
+    print(f"{time.time()-start}")
+    print(f"Segment {num_segments}")

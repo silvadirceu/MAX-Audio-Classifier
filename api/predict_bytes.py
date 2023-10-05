@@ -19,16 +19,16 @@ from flask_restplus import fields
 from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import BadRequest
 from maxfw.core import MAX_API, PredictAPI
-from utils.audio_utils import read_audio
+from utils.serializers import bytes_to_ndarray
 
 # set up parser for audio input data
 input_parser = MAX_API.parser()
 input_parser.add_argument(
-    "audio_path",
-    type=str,
+    "audio",
+    type=FileStorage,
+    location="files",
     required=True,
-    # location="json",  # specify that the argument is expected as JSON in the request body
-    help="Audio location path",
+    help="signed 16-bit PCM WAV audio file",
 )
 input_parser.add_argument(
     "start_time",
@@ -64,7 +64,7 @@ predict_response = MAX_API.model(
 )
 
 
-class ModelPathPredictAPI(PredictAPI):
+class ModelBytesPredictAPI(PredictAPI):
     model_wrapper = ModelWrapper()
 
     @MAX_API.doc("predict")
@@ -76,10 +76,8 @@ class ModelPathPredictAPI(PredictAPI):
 
         args = input_parser.parse_args()
         # Decode the base64 audio data
-        print(args["audio_path"])
         try:
-            print("Reading audio")
-            audio_data = read_audio(args["audio_path"])
+            audio_bytes = args["audio"].read()
         except Exception as e:
             e = BadRequest()
             e.data = {
@@ -87,28 +85,31 @@ class ModelPathPredictAPI(PredictAPI):
                 "message": str(e),
             }
             raise e
+        
+        audio_data = bytes_to_ndarray(audio_bytes)
+        print(type(audio_data))
+        
+        # Getting the predictions
+        try:
+            preds = self.model_wrapper._predict(audio_data, args["start_time"])
+        except ValueError:
+            e = BadRequest()
+            e.data = {
+                "status": "error",
+                "message": "Invalid start time: value outside audio clip",
+            }
+            raise e
 
-        # # Getting the predictions
-        # try:
-        #     preds = self.model_wrapper._predict(audio_data, args["start_time"])
-        # except ValueError:
-        #     e = BadRequest()
-        #     e.data = {
-        #         "status": "error",
-        #         "message": "Invalid start time: value outside audio clip",
-        #     }
-        #     raise e
+        # Aligning the predictions to the required API format
+        label_preds = [
+            {"label_id": p[0], "label": p[1], "probability": p[2]} for p in preds
+        ]
 
-        # # Aligning the predictions to the required API format
-        # label_preds = [
-        #     {"label_id": p[0], "label": p[1], "probability": p[2]} for p in preds
-        # ]
+        # Filter list
+        if args["filter"] is not None and any(x.strip() != "" for x in args["filter"]):
+            label_preds = [x for x in label_preds if x["label"] in args["filter"]]
 
-        # # Filter list
-        # if args["filter"] is not None and any(x.strip() != "" for x in args["filter"]):
-        #     label_preds = [x for x in label_preds if x["label"] in args["filter"]]
+        result["predictions"] = label_preds
+        result["status"] = "ok"
 
-        # result["predictions"] = label_preds
-        # result["status"] = "ok"
-
-        # return result
+        return result

@@ -41,8 +41,8 @@ def waveform_to_examples(data, sample_rate):
       bands, where the frame length is vggish_params.STFT_HOP_LENGTH_SECONDS.
     """
     # Convert to mono.
-    if len(data.shape) > 1:
-        data = np.mean(data, axis=1)
+    # if len(data.shape) > 1:
+    #     data = np.mean(data, axis=1)
     # Resample to the rate assumed by VGGish.
     if sample_rate != vggish_params.SAMPLE_RATE:
         data = resampy.resample(data, sample_rate, vggish_params.SAMPLE_RATE)
@@ -82,15 +82,17 @@ def wavfile_to_examples(wav_file):
       See waveform_to_examples.
     """
     try:
-        wav_file = BytesIO(wav_file)
-        sr, wav_data = wavfile.read(wav_file)
+        # wav_file = BytesIO(wav_file)
+        # sr, wav_data = wavfile.read(wav_file)
         # wav_data, sr = np.asarray(wav_file)
+        wav_data, sr = wav_file, 16000
     except IOError:
         print("Error reading WAV file!")
         print("The specified WAV file type is not supported by scipy.io.wavfile.read()")
         sys.exit(1)
 
-    if wav_data.dtype != np.int16:
-        raise TypeError('Bad sample type: %r' % wav_data.dtype)
-    samples = wav_data / 32768.0  # Convert to [-1.0, +1.0]
+    # if wav_data.dtype != np.int16:
+    #     raise TypeError('Bad sample type: %r' % wav_data.dtype)
+    # samples = wav_data / 32768.0  # Convert to [-1.0, +1.0]
+    samples = wav_data
     return waveform_to_examples(samples, sr)
