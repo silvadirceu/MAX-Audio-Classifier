@@ -4,7 +4,7 @@ import requests
 import time
 from utils.serializers import ndarray_to_bytes
 
-def max_request(signal) -> dict:
+def max_request(signal, topN=5) -> dict:
     audio_bytes = ndarray_to_bytes(signal)
     buf = io.BytesIO()
     buf.write(audio_bytes)
@@ -19,9 +19,15 @@ def max_request(signal) -> dict:
 if __name__ == "__main__":
     file = "/home/joao/Desktop/Ecad/database/audio/tasks/139743/139743.ogg"
     url = "http://localhost:3005/model/predict/bytes"
+
     signal, fs = librosa.load(file, mono=True, sr=16000)
     segment_signal = signal[:int(10 * fs)]
     segment_duration = 10  # 10s
+    topN = 5
+
+    if topN is not None:
+        url += '?topN='+topN
+
     samples_per_segment = fs * segment_duration
     num_segments = len(signal) // samples_per_segment
     start = time.time()

@@ -37,6 +37,12 @@ input_parser.add_argument(
     help="The number of seconds into the audio file the prediction should start at.",
 )
 input_parser.add_argument(
+    "topN",
+    type=int,
+    default=5,
+    help="The  most probable topN classes.",
+)
+input_parser.add_argument(
     "filter",
     required=False,
     action="split",
@@ -91,7 +97,7 @@ class ModelBytesPredictAPI(PredictAPI):
         
         # Getting the predictions
         try:
-            preds = self.model_wrapper._predict(audio_data, args["start_time"])
+            preds = self.model_wrapper._predict(audio_data, args["start_time"], args["topN"])
         except ValueError:
             e = BadRequest()
             e.data = {

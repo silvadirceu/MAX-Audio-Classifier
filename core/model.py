@@ -83,7 +83,7 @@ class ModelWrapper(MAXModelWrapper):
         class_scores = output_tensor.eval(feed_dict={input_tensor: processed_embeddings}, session=self.session_classify)
         return class_scores
 
-    def _predict(self, wav_file, time_stamp):
+    def _predict(self, wav_file, time_stamp, topN=5):
         """
         Driver function that performs all core tasks.
         Input args:
@@ -98,7 +98,7 @@ class ModelWrapper(MAXModelWrapper):
         # Step 3: Classify the embeddings.
         raw_preds = self.classify_embeddings(embeddings_processed)
         # Step 4: Post process the raw prediction vectors to a more interpretable format.
-        preds = self.classifier_post_process(raw_preds[0])
+        preds = self.classifier_post_process(raw_preds[0], topN=topN)
         return preds
 
     def classifier_pre_process(self, embeddings, time_stamp):
@@ -136,7 +136,7 @@ class ModelWrapper(MAXModelWrapper):
         embeddings = self.uint8_to_float32(embeddings)
         return embeddings
 
-    def classifier_post_process(self, raw_preds):
+    def classifier_post_process(self, raw_preds, topN=5):
         """
         This function converts raw result vectors into a more interpretable format.
         Input args:
@@ -144,7 +144,7 @@ class ModelWrapper(MAXModelWrapper):
         Returns :
             preds : list of (label_id,label,probability) tuples for top 5 class scores.
         """
-        top_preds = raw_preds.argsort()[-5:][::-1]
+        top_preds = raw_preds.argsort()[-topN:][::-1]
         preds = [(self.indices.loc[top_preds[i]]['mid'], self.indices.loc[top_preds[i]]['display_name'],
                   raw_preds[top_preds[i]]) for i in range(len(top_preds))]
         return preds
