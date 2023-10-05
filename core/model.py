@@ -22,6 +22,7 @@ from . import vggish_params
 from . import vggish_postprocess
 from . import vggish_slim
 from config import MODEL_META_DATA as model_meta
+from config import MUSIC_IDX, SPEECH_IDX, NOISE_IDX, SILENCE_IDX
 from maxfw.model import MAXModelWrapper
 from config import DEFAULT_EMBEDDING_CHECKPOINT, DEFAULT_PCA_PARAMS, DEFAULT_CLASSIFIER_MODEL
 
@@ -99,7 +100,10 @@ class ModelWrapper(MAXModelWrapper):
         raw_preds = self.classify_embeddings(embeddings_processed)
         # Step 4: Post process the raw prediction vectors to a more interpretable format.
         preds = self.classifier_post_process(raw_preds[0], topN=topN)
-        return preds
+
+        music_score = self.reduce_music_class(raw_preds[0])
+        print("music_score: ", music_score)
+        return preds, music_score
 
     def classifier_pre_process(self, embeddings, time_stamp):
         """
@@ -151,3 +155,17 @@ class ModelWrapper(MAXModelWrapper):
 
     def uint8_to_float32(self, x):
         return (np.float32(x) - 128.) / 128.
+
+    def reduce_music_class(self, scores):
+
+        scores_speech = float(np.sum(scores[SPEECH_IDX]))
+        scores_noise = float(np.sum(scores[NOISE_IDX]))
+        scores_music = float(np.sum(scores[MUSIC_IDX]))
+        scores_silence = float(np.sum(scores[SILENCE_IDX]))
+
+        new_scores = np.array([scores_music, scores_speech, scores_noise, scores_silence])
+
+        new_scores = new_scores / np.sum(new_scores)
+        print("Depois Normalizacao:", new_scores)
+
+        return float(new_scores[0])

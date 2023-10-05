@@ -58,6 +58,13 @@ label_prediction = MAX_API.model(
     },
 )
 
+music_probability= MAX_API.model(
+    "MusicProbability",
+    {
+        "probability": fields.Float(required=True),
+    },
+)
+
 predict_response = MAX_API.model(
     "ModelPredictResponse",
     {
@@ -66,6 +73,10 @@ predict_response = MAX_API.model(
             fields.Nested(label_prediction),
             description="Predicted audio classes and probabilities",
         ),
+        "music_score": fields.List(
+            fields.Nested(music_probability),
+            description="Music Probability",
+        )
     },
 )
 
@@ -97,7 +108,7 @@ class ModelBytesPredictAPI(PredictAPI):
         
         # Getting the predictions
         try:
-            preds = self.model_wrapper._predict(audio_data, args["start_time"], args["topN"])
+            preds, music_score = self.model_wrapper._predict(audio_data, args["start_time"], args["topN"])
         except ValueError:
             e = BadRequest()
             e.data = {
@@ -115,7 +126,11 @@ class ModelBytesPredictAPI(PredictAPI):
         if args["filter"] is not None and any(x.strip() != "" for x in args["filter"]):
             label_preds = [x for x in label_preds if x["label"] in args["filter"]]
 
+
+        music_prob = {"probability": music_score}
+
         result["predictions"] = label_preds
         result["status"] = "ok"
+        result["music_score"] = music_prob
 
         return result
