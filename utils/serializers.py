@@ -1,5 +1,5 @@
 import numpy as np
-from utils.bmsgpack import obj_to_msgpack, msgpack_to_obj
+from backend.utils.bmsgpack import obj_to_msgpack, msgpack_to_obj
 
 
 def ndarray_to_bytes (array: np.ndarray) -> bytes:

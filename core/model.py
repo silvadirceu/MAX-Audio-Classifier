@@ -22,7 +22,7 @@ from . import vggish_params
 from . import vggish_postprocess
 from . import vggish_slim
 from config import MODEL_META_DATA as model_meta
-from config import MUSIC_IDX, SPEECH_IDX, NOISE_IDX, SILENCE_IDX
+from config import ALL_MUSIC_IDX, SPEECH_IDX, NOISE_IDX, SILENCE_IDX
 from maxfw.model import MAXModelWrapper
 from config import DEFAULT_EMBEDDING_CHECKPOINT, DEFAULT_PCA_PARAMS, DEFAULT_CLASSIFIER_MODEL
 
@@ -149,7 +149,7 @@ class ModelWrapper(MAXModelWrapper):
             preds : list of (label_id,label,probability) tuples for top 5 class scores.
         """
         top_preds = raw_preds.argsort()[-topN:][::-1]
-        preds = [(self.indices.loc[top_preds[i]]['mid'], self.indices.loc[top_preds[i]]['display_name'],
+        preds = [(self.indices.loc[top_preds[i]]['index'], self.indices.loc[top_preds[i]]['display_name'],
                   raw_preds[top_preds[i]]) for i in range(len(top_preds))]
         return preds
 
@@ -160,12 +160,12 @@ class ModelWrapper(MAXModelWrapper):
 
         scores_speech = float(np.sum(scores[SPEECH_IDX]))
         scores_noise = float(np.sum(scores[NOISE_IDX]))
-        scores_music = float(np.sum(scores[MUSIC_IDX]))
+        scores_music = float(np.sum(scores[ALL_MUSIC_IDX]))
         scores_silence = float(np.sum(scores[SILENCE_IDX]))
 
         new_scores = np.array([scores_music, scores_speech, scores_noise, scores_silence])
 
         new_scores = new_scores / np.sum(new_scores)
-        print("Depois Normalizacao:", new_scores)
 
         return float(new_scores[0])
+
