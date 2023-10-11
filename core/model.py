@@ -22,7 +22,7 @@ from . import vggish_params
 from . import vggish_postprocess
 from . import vggish_slim
 from config import MODEL_META_DATA as model_meta
-from config import ALL_MUSIC_IDX, SPEECH_IDX, NOISE_IDX, SILENCE_IDX
+from config import SPEECH_IDX, NOISE_IDX, SILENCE_IDX, SINGING_IDX, INSTRUMENTAL_IDX, MUSIC_IDX
 from maxfw.model import MAXModelWrapper
 from config import DEFAULT_EMBEDDING_CHECKPOINT, DEFAULT_PCA_PARAMS, DEFAULT_CLASSIFIER_MODEL
 
@@ -69,6 +69,8 @@ class ModelWrapper(MAXModelWrapper):
         examples_batch = vggish_input.wavfile_to_examples(wav_file)
         [embedding_batch] = self.session_embedding.run([self.embedding_tensor],
                                                        feed_dict={self.features_tensor: examples_batch})
+    
+        
         return self.pproc.postprocess(embedding_batch)
 
     def classify_embeddings(self, processed_embeddings):
@@ -82,6 +84,9 @@ class ModelWrapper(MAXModelWrapper):
         output_tensor = self.classify_model.output
         input_tensor = self.classify_model.input
         class_scores = output_tensor.eval(feed_dict={input_tensor: processed_embeddings}, session=self.session_classify)
+
+        class_scores = class_scores/np.sum(class_scores)
+        
         return class_scores
 
     def _predict(self, wav_file, time_stamp, topN=5):
@@ -102,7 +107,6 @@ class ModelWrapper(MAXModelWrapper):
         preds = self.classifier_post_process(raw_preds[0], topN=topN)
 
         music_score = self.reduce_music_class(raw_preds[0])
-        print("music_score: ", music_score)
         return preds, music_score
 
     def classifier_pre_process(self, embeddings, time_stamp):
@@ -127,7 +131,7 @@ class ModelWrapper(MAXModelWrapper):
             embeddings = embeddings[embeddings_ts:end_ts, :]
         elif embeddings_ts < 0 or embeddings_ts >= embeddings_len:
             raise ValueError
-
+        
         embeddings_len = embeddings.shape[0]
         if embeddings_len < 10:
             while embeddings_len < 10:
@@ -136,6 +140,7 @@ class ModelWrapper(MAXModelWrapper):
             embeddings = embeddings.reshape((int(embeddings_len), 128))
         else:
             pass
+        
         embeddings = embeddings[0:10, :].reshape([1, 10, 128])
         embeddings = self.uint8_to_float32(embeddings)
         return embeddings
@@ -149,23 +154,25 @@ class ModelWrapper(MAXModelWrapper):
             preds : list of (label_id,label,probability) tuples for top 5 class scores.
         """
         top_preds = raw_preds.argsort()[-topN:][::-1]
-        preds = [(self.indices.loc[top_preds[i]]['index'], self.indices.loc[top_preds[i]]['display_name'],
-                  raw_preds[top_preds[i]]) for i in range(len(top_preds))]
+        preds = [(self.indices.loc[top_preds[i]]['index'], self.indices.loc[top_preds[i]]['display_name'],raw_preds[top_preds[i]]) for i in range(len(top_preds))]
+            
         return preds
 
     def uint8_to_float32(self, x):
         return (np.float32(x) - 128.) / 128.
-
+    
     def reduce_music_class(self, scores):
 
-        scores_speech = float(np.sum(scores[SPEECH_IDX]))
-        scores_noise = float(np.sum(scores[NOISE_IDX]))
-        scores_music = float(np.sum(scores[ALL_MUSIC_IDX]))
-        scores_silence = float(np.sum(scores[SILENCE_IDX]))
+        scores_speech = float(np.sum(scores[np.asarray(list(SPEECH_IDX))]))
+        scores_noise = float(np.sum(scores[np.asarray(list(NOISE_IDX))]))
+        scores_instrumental = float(np.sum(scores[np.asarray(list(INSTRUMENTAL_IDX))]))
+        scores_singing = float(np.sum(scores[np.asarray(list(SINGING_IDX))]))
+        scores_music = float(np.sum(scores[np.asarray(list(MUSIC_IDX))]))
+        scores_silence = float(np.sum(scores[np.asarray(list(SILENCE_IDX))]))
 
-        new_scores = np.array([scores_music, scores_speech, scores_noise, scores_silence])
+        new_scores = np.array([scores_music, scores_instrumental, scores_singing, scores_speech, scores_silence, scores_noise])
 
         new_scores = new_scores / np.sum(new_scores)
 
-        return float(new_scores[0])
+        return float(np.sum(new_scores[:3]))
 

@@ -73,7 +73,7 @@ class Postprocessor(object):
         # - Transpose result back to [batch_size, embedding_size].
         pca_applied = np.dot(self._pca_matrix,
                              (embeddings_batch.T - self._pca_means)).T
-
+        print('self._pca_matrix.shape: ', self._pca_matrix.shape)
         # Quantize by:
         # - clipping to [min, max] range
         clipped_embeddings = np.clip(

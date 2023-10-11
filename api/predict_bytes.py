@@ -20,6 +20,8 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import BadRequest
 from maxfw.core import MAX_API, PredictAPI
 from utils.serializers import bytes_to_ndarray
+from config import SPEECH_IDX, NOISE_IDX, SILENCE_IDX, SINGING_IDX, INSTRUMENTAL_IDX, MUSIC_IDX
+import numpy as np
 
 # set up parser for audio input data
 input_parser = MAX_API.parser()
@@ -52,7 +54,7 @@ input_parser.add_argument(
 label_prediction = MAX_API.model(
     "LabelPrediction",
     {
-        "label_id": fields.String(required=False, description="Label identifier"),
+        "label_id": fields.Integer(required=False, description="Label identifier"),
         "label": fields.String(required=True, description="Audio class label"),
         "probability": fields.Float(required=True),
     },
@@ -62,6 +64,20 @@ music_probability= MAX_API.model(
     "MusicProbability",
     {
         "probability": fields.Float(required=True),
+    },
+)
+
+resume_music_score= MAX_API.model(
+    "MusicScore",
+    {
+        "score": fields.Float(required=True),
+    },
+)
+
+resume_music_labels= MAX_API.model(
+    "MusicLabel",
+    {
+        "label": fields.String(required=True),
     },
 )
 
@@ -76,9 +92,18 @@ predict_response = MAX_API.model(
         "music_score": fields.List(
             fields.Nested(music_probability),
             description="Music Probability",
-        )
+        ),
+        "resume_scores": fields.List(
+            fields.Nested(resume_music_score),
+            description="Music scores",
+        ),
+        "resume_labels": fields.List(
+            fields.Nested(resume_music_labels),
+            description="Music Labels",
+        ),
     },
 )
+
 
 
 class ModelBytesPredictAPI(PredictAPI):
@@ -104,7 +129,6 @@ class ModelBytesPredictAPI(PredictAPI):
             raise e
         
         audio_data = bytes_to_ndarray(audio_bytes)
-        print(type(audio_data))
         
         # Getting the predictions
         try:
@@ -121,16 +145,48 @@ class ModelBytesPredictAPI(PredictAPI):
         label_preds = [
             {"label_id": p[0], "label": p[1], "probability": p[2]} for p in preds
         ]
-
+        
         # Filter list
         if args["filter"] is not None and any(x.strip() != "" for x in args["filter"]):
             label_preds = [x for x in label_preds if x["label"] in args["filter"]]
 
+        #resume features
+        resume_labels = np.array([
+                        'music',
+                        'instrumental',
+                        'singing',
+                        'speech',
+                        'silence',
+                        'noise'
+                        ])
+            
+        resume_scores = np.zeros((6,))
+
+        for c in range(len(label_preds)):
+            if label_preds[c]["label_id"] in MUSIC_IDX:
+                resume_scores[0] += label_preds[c]["probability"]
+            elif label_preds[c]["label_id"] in INSTRUMENTAL_IDX:
+                resume_scores[1] += label_preds[c]["probability"]
+            elif label_preds[c]["label_id"] in SINGING_IDX:
+                resume_scores[2] += label_preds[c]["probability"]
+            elif label_preds[c]["label_id"] in SPEECH_IDX:
+                resume_scores[3] += label_preds[c]["probability"]
+            elif label_preds[c]["label_id"] in SILENCE_IDX:
+                resume_scores[4] += label_preds[c]["probability"]
+            elif label_preds[c]["label_id"] in NOISE_IDX:
+                resume_scores[5] += label_preds[c]["probability"]
 
         music_prob = {"probability": music_score}
 
+        idx_sort = np.argsort(resume_scores)[::-1]
+        
+        res_scores = [{"score": s} for s in list(resume_scores[idx_sort])]
+        res_labels = [{"label": l} for l in list(resume_labels[idx_sort])]
+        
         result["predictions"] = label_preds
         result["status"] = "ok"
         result["music_score"] = music_prob
+        result["resume_scores"] = res_scores
+        result["resume_labels"] = res_labels
 
         return result
